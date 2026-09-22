@@ -32,11 +32,12 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
 
+      # Through the Rake tasks, so the Rakefile a contributor is told to run is exercised too.
       - name: RuboCop
-        run: bundle exec rubocop
+        run: bundle exec rake rubocop
 
       - name: RBS
-        run: bundle exec rbs -I sig validate --silent
+        run: bundle exec rake rbs
 
   test:
     name: Test on Ruby ${{ matrix.ruby }}
