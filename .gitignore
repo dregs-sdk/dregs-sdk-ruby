@@ -1,0 +1,21 @@
+# Ruby
+*.gem
+/pkg/
+/tmp/
+/doc/
+/.yardoc/
+
+# Bundler
+/.bundle/
+/vendor/bundle/
+
+# Tooling caches
+/.rspec_status
+/coverage/
+/.rubocop_cache/
+
+# Local environment
+.env
+
+# macOS
+.DS_Store
