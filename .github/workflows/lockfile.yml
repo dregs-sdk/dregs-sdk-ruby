@@ -22,7 +22,7 @@ jobs:
           ruby-version: "3.1"
 
       - name: Resolve
-        run: bundle lock
+        run: bundle lock --add-platform ruby arm64-darwin x86_64-darwin x86_64-linux aarch64-linux
 
       - name: Upload
         uses: actions/upload-artifact@v4
