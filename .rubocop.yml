@@ -16,6 +16,13 @@ Layout/LineLength:
 Metrics:
   Enabled: false
 
+# The gem is written in double quotes throughout, as the Python and TypeScript ports are.
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
 # Both spellings of a hash key are legitimate. `category: category` reads better than the
 # shorthand in a mapping built field by field.
 Style/HashSyntax:

@@ -20,9 +20,7 @@ rescue Dregs::NotFoundError
   abort "Dregs has never seen #{identity_id}."
 end
 
-if scores.empty?
-  abort "#{identity_id} has not been scored yet. Scoring runs shortly after new activity."
-end
+abort "#{identity_id} has not been scored yet. Scoring runs shortly after new activity." if scores.empty?
 
 puts "Scores for #{identity_id}"
 puts "  Humanity:     #{format_score(scores.humanity)}"

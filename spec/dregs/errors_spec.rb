@@ -191,8 +191,8 @@ RSpec.describe "error handling" do
     end
 
     it "recovers when a retry after a connection failure lands" do
-      stub_request(:get, identity_url).to_raise(Errno::ECONNREFUSED)
-        .then.to_return(status: 200, body: '{"id":"user_12345"}')
+      stub = stub_request(:get, identity_url)
+      stub.to_raise(Errno::ECONNREFUSED).then.to_return(status: 200, body: '{"id":"user_12345"}')
 
       expect(retrying_client.identities.get("user_12345").id).to eq("user_12345")
     end
@@ -210,8 +210,8 @@ RSpec.describe "error handling" do
     end
 
     it "retries a timeout" do
-      stub_request(:get, identity_url).to_timeout
-        .then.to_return(status: 200, body: '{"id":"user_12345"}')
+      stub = stub_request(:get, identity_url)
+      stub.to_timeout.then.to_return(status: 200, body: '{"id":"user_12345"}')
 
       expect(retrying_client.identities.get("user_12345").id).to eq("user_12345")
     end

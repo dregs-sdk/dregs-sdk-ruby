@@ -169,20 +169,7 @@ module Dregs
     # stays readable: anything this returns without a +:payload+ key has already been judged
     # retryable, and anything not worth retrying has already been raised.
     def attempt_request(uri, method, body, attempt)
-      response =
-        begin
-          perform(uri, method, body)
-        rescue Timeout::Error
-          raise TimeoutError, "Request to #{uri} timed out." unless retry?(attempt: attempt, status_code: nil)
-
-          return {}
-        rescue SocketError, SystemCallError, IOError, OpenSSL::SSL::SSLError => e
-          unless retry?(attempt: attempt, status_code: nil)
-            raise ConnectionError, "Could not reach Dregs at #{uri}: #{e.message}"
-          end
-
-          return {}
-        end
+      response = perform(uri, method, body)
 
       begin
         { payload: process(response) }
@@ -191,6 +178,18 @@ module Dregs
 
         { retry_after: e.is_a?(RateLimitError) ? e.retry_after : nil }
       end
+    rescue Timeout::Error
+      raise TimeoutError, "Request to #{uri} timed out." unless retry?(attempt: attempt, status_code: nil)
+
+      {}
+    rescue SocketError, SystemCallError, IOError, OpenSSL::SSL::SSLError => e
+      raise ConnectionError, unreachable(uri, e) unless retry?(attempt: attempt, status_code: nil)
+
+      {}
+    end
+
+    def unreachable(uri, error)
+      "Could not reach Dregs at #{uri}: #{error.message}"
     end
 
     def missing_key_message
@@ -398,11 +397,7 @@ module Dregs
 
       return nil if raw.nil?
 
-      begin
-        Float(raw)
-      rescue ArgumentError, TypeError
-        nil
-      end
+      Float(raw, exception: false)
     end
   end
 end
