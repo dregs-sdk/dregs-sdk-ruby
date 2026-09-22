@@ -1,0 +1,28 @@
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "tmp/**/*"
+
+# The doc comments in this gem are the deliverable, so they are held to a prose line length
+# rather than the default 120-character code one.
+Layout/LineLength:
+  Max: 110
+
+# Size metrics measure the wrong thing in a client library: the long methods here are flat
+# request builders and response mappers, which are clearer in one piece than split apart.
+Metrics:
+  Enabled: false
+
+# Both spellings of a hash key are legitimate. `category: category` reads better than the
+# shorthand in a mapping built field by field.
+Style/HashSyntax:
+  EnforcedShorthandSyntax: either
+
+# A spec file names what it is describing, not a constant it defines.
+Naming/FileName:
+  Exclude:
+    - "Gemfile"
+    - "Rakefile"
