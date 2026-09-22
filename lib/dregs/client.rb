@@ -119,8 +119,7 @@ module Dregs
     # @param timestamp [Time, DateTime, String, nil] when the event happened, if not now. A +Time+
     #   is converted to UTC; a string is sent as given and must already be ISO-8601.
     # @param source [String, nil] a label for where the event came from; defaults to +"ruby-sdk"+
-    # @return [TrackResult] check +accepted?+ to distinguish a recorded event from one of the
-    #   rejections Dregs answers quietly
+    # @return [TrackResult] check +accepted?+ to confirm Dregs recorded the event
     # @raise [QuotaExceededError] the account is over its monthly event limit
     # @raise [RateLimitError] the credential is ingesting too fast
     # @raise [AuthenticationError] the secret key was not recognized

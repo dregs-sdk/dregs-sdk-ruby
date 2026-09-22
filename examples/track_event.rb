@@ -34,6 +34,6 @@ end
 if result.accepted?
   puts "Recorded event #{result.id}."
 else
-  # Dregs answers a few rejections quietly rather than naming the check that failed.
+  # Uncommon, and worth a log line: accepted without an event being recorded.
   puts "The event was not recorded (status #{result.status})."
 end
