@@ -1,0 +1,286 @@
+# Signatures for the public surface of the Dregs SDK. Validated in CI with `rbs validate`, so a
+# method that changes shape here without changing there is caught.
+
+module Dregs
+  VERSION: String
+
+  def self.new: (**untyped options) -> Client
+
+  class Error < StandardError
+  end
+
+  class ConnectionError < Error
+  end
+
+  class TimeoutError < ConnectionError
+  end
+
+  class WebhookVerificationError < Error
+  end
+
+  class APIError < Error
+    attr_reader status_code: Integer
+    attr_reader body: untyped
+    attr_reader request_id: String?
+    attr_reader api_message: String
+
+    def initialize: (String message, status_code: Integer, ?body: untyped, ?request_id: String?) -> void
+    def to_s: () -> String
+  end
+
+  class BadRequestError < APIError
+  end
+
+  class AuthenticationError < APIError
+  end
+
+  class QuotaExceededError < APIError
+  end
+
+  class PermissionDeniedError < APIError
+  end
+
+  class NotFoundError < APIError
+  end
+
+  class RateLimitError < APIError
+    attr_reader retry_after: Float?
+
+    def initialize: (
+      String message,
+      ?status_code: Integer,
+      ?body: untyped,
+      ?request_id: String?,
+      ?retry_after: Float?
+    ) -> void
+  end
+
+  class ServerError < APIError
+  end
+
+  module Errors
+    STATUS_ERRORS: Hash[Integer, Class]
+
+    def self.for_status: (Integer status_code) -> Class
+  end
+
+  module Category
+    HUMANITY: Symbol
+    AUTHENTICITY: Symbol
+    UNIQUENESS: Symbol
+    BEHAVIOR: Symbol
+    ALL: Array[Symbol]
+
+    def self.parse: (untyped value) -> Symbol?
+  end
+
+  module Parsing
+    def self?.time: (untyped value) -> Time?
+    def self?.hash_or_empty: (untyped value) -> Hash[untyped, untyped]
+    def self?.array_or_empty: (untyped value) -> Array[untyped]
+  end
+
+  class TrackResult
+    attr_reader status: String?
+    attr_reader id: String?
+    attr_reader fingerprint: String?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (status: String?, id: String?, fingerprint: String?, ?raw: Hash[untyped, untyped]) -> void
+    def accepted?: () -> bool
+    def self.from_api: (untyped payload) -> TrackResult
+  end
+
+  class Badge
+    attr_reader slug: String?
+    attr_reader name: String?
+    attr_reader type: String?
+    attr_reader explanation: String?
+    attr_reader metadata: Hash[untyped, untyped]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (
+      slug: String?,
+      name: String?,
+      type: String?,
+      explanation: String?,
+      ?metadata: Hash[untyped, untyped],
+      ?raw: Hash[untyped, untyped]
+    ) -> void
+
+    def self.from_api: (untyped payload) -> Badge
+  end
+
+  class Observation
+    attr_reader category: Symbol?
+    attr_reader id: String?
+    attr_reader label: String?
+    attr_reader explanation: String?
+    attr_reader value: Float?
+    attr_reader confidence: Float?
+    attr_reader weight: Float?
+    attr_reader metadata: Hash[untyped, untyped]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (
+      category: Symbol?,
+      id: String?,
+      label: String?,
+      explanation: String?,
+      value: Float?,
+      confidence: Float?,
+      weight: Float?,
+      ?metadata: Hash[untyped, untyped],
+      ?raw: Hash[untyped, untyped]
+    ) -> void
+
+    def self.from_api: (untyped payload) -> Observation
+  end
+
+  class Score
+    attr_reader category: Symbol?
+    attr_reader value: Integer?
+    attr_reader observations: Array[Observation]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (
+      category: Symbol?,
+      value: Integer?,
+      ?observations: Array[Observation],
+      ?raw: Hash[untyped, untyped]
+    ) -> void
+
+    def self.from_api: (untyped payload) -> Score
+  end
+
+  class Scores
+    include Enumerable[Score]
+
+    attr_reader to_a: Array[Score]
+
+    def initialize: (?Array[Score] scores) -> void
+    def each: () { (Score) -> void } -> self
+            | () -> Enumerator[Score, Scores]
+    def size: () -> Integer
+    def length: () -> Integer
+    def empty?: () -> bool
+    def []: (Integer index) -> Score?
+    def get: (Symbol category) -> Score?
+    def humanity: () -> Integer?
+    def authenticity: () -> Integer?
+    def uniqueness: () -> Integer?
+    def behavior: () -> Integer?
+    def self.from_api: (untyped payload) -> Scores
+  end
+
+  class Identity
+    attr_reader id: String?
+    attr_reader display_name: String?
+    attr_reader display_email: String?
+    attr_reader display_username: String?
+    attr_reader humanity_score: Integer?
+    attr_reader authenticity_score: Integer?
+    attr_reader uniqueness_score: Integer?
+    attr_reader behavior_score: Integer?
+    attr_reader created_at: Time?
+    attr_reader updated_at: Time?
+    attr_reader last_tracked_at: Time?
+    attr_reader last_scored_at: Time?
+    attr_reader disregarded: bool
+    attr_reader badges: Array[Badge]
+    attr_reader data: Hash[untyped, untyped]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def disregarded?: () -> bool
+    def scores: () -> Scores
+    def self.from_api: (untyped payload) -> Identity
+  end
+
+  class Analysis
+    attr_reader id: Integer?
+    attr_reader identity_id: String?
+    attr_reader scores: Scores
+    attr_reader event_count: Integer?
+    attr_reader device_count: Integer?
+    attr_reader duration_millis: Integer?
+    attr_reader started_at: Time?
+    attr_reader finished_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def observations: () -> Array[Observation]
+    def self.from_api: (untyped payload) -> Analysis
+  end
+
+  class Identities
+    def initialize: (Client client) -> void
+    def get: (String identity_id) -> Identity
+    def scores: (String identity_id) -> Scores
+    def analysis: (String identity_id) -> Analysis
+    def analyze: (String identity_id) -> nil
+  end
+
+  class Client
+    DEFAULT_BASE_URL: String
+    DEFAULT_TIMEOUT: Integer
+    DEFAULT_MAX_RETRIES: Integer
+    SECRET_KEY_ENV: String
+    BASE_URL_ENV: String
+    RETRY_STATUSES: Array[Integer]
+    MAX_BACKOFF_SECONDS: Float
+    STATUS_RATE_LIMITED: String
+    STATUS_QUOTA_EXCEEDED: String
+
+    attr_reader base_url: String
+    attr_reader max_retries: Integer
+    attr_reader timeout: Numeric
+    attr_reader identities: Identities
+
+    def initialize: (
+      ?secret_key: String?,
+      ?base_url: String?,
+      ?timeout: Numeric,
+      ?max_retries: Integer
+    ) -> void
+
+    def track: (
+      String event_type,
+      identity: String,
+      ?data: Hash[untyped, untyped],
+      ?identity_data: Hash[untyped, untyped],
+      ?event_id: String?,
+      ?timestamp: (Time | String)?,
+      ?source: String?
+    ) -> TrackResult
+
+    def request: (Symbol method, String path, ?body: Hash[untyped, untyped]?) -> untyped
+  end
+
+  module Webhooks
+    SIGNATURE_HEADER: String
+    TIMESTAMP_HEADER: String
+    EVENT_HEADER: String
+    DEFAULT_TOLERANCE_SECONDS: Integer
+
+    def self?.compute_signature: (payload: String, secret: String) -> String
+
+    def self?.verify_signature: (payload: String, signature: String?, secret: String?) -> bool
+
+    def self?.verify: (
+      payload: String,
+      signature: String?,
+      secret: String?,
+      ?tolerance: Numeric?,
+      ?now: Time?
+    ) -> Hash[untyped, untyped]
+
+    def self?.parse: (String payload) -> Hash[untyped, untyped]
+
+    def self?.check_freshness: (
+      Hash[untyped, untyped] event,
+      tolerance: Numeric,
+      now: Time?
+    ) -> void
+  end
+end
