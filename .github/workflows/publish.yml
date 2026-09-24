@@ -82,8 +82,10 @@ jobs:
       # Exchanges this job's OIDC token for a RubyGems credential that lives for the length of the
       # job. `rubygems/release-gem` would also work, but it runs `rake release`, which wants to cut
       # the git tag itself; the tag already exists by the time a release event fires.
+      # Pinned to an exact version: this action publishes only exact tags (v1.0.0, v2.0.0,
+      # v2.1.0) and no floating major alias, so `@v1` does not resolve to anything.
       - name: Authenticate to RubyGems
-        uses: rubygems/configure-rubygems-credentials@v1
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
 
       - name: Publish
         run: gem push dregs-*.gem
