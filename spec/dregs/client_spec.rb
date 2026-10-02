@@ -192,6 +192,69 @@ RSpec.describe Dregs::Client do
         .to raise_error(ArgumentError, /64 characters/)
     end
 
+    it "sends the groups" do
+      bodies = capture_events
+
+      client.track(
+        "user.login",
+        identity: "user_12345",
+        groups: [
+          { type: "organization", id: "org_678", data: { name: "Acme Inc" } },
+          { "type" => "team", "id" => 42 }
+        ]
+      )
+
+      expect(bodies.last["groups"]).to eq(
+        [
+          { "type" => "organization", "id" => "org_678", "data" => { "name" => "Acme Inc" } },
+          { "type" => "team", "id" => "42", "data" => {} }
+        ]
+      )
+    end
+
+    it "treats a group without a type as an organization" do
+      bodies = capture_events
+
+      client.track("user.login", identity: "user_12345", groups: [{ id: "org_678" }])
+
+      expect(bodies.last["groups"]).to eq([{ "type" => "organization", "id" => "org_678", "data" => {} }])
+    end
+
+    it "omits the groups when there are none" do
+      bodies = capture_events
+
+      client.track("user.login", identity: "user_12345")
+      client.track("user.login", identity: "user_12345", groups: [])
+
+      expect(bodies[0]).not_to have_key("groups")
+      expect(bodies[1]).not_to have_key("groups")
+    end
+
+    {
+      "a hash instead of an array" => [{ type: "team", id: "team_42" }, /array of groups/],
+      "an entry that is not a hash" => [["team_42"], /must be a hash/],
+      "a group without an id" => [[{ type: "team" }], /needs an id/],
+      "a group with an empty id" => [[{ type: "team", id: "" }], /needs an id/],
+      "a type that is not a string" => [[{ type: 7, id: "team_42" }], /must be a string/],
+      "two groups of one type" => [
+        [{ type: "team", id: "a" }, { type: "Team", id: "b" }],
+        /one group of each type/
+      ],
+      "an untyped group beside an organization" => [
+        [{ id: "a" }, { type: "organization", id: "b" }],
+        /one group of each type/
+      ],
+      "data that is not a hash" => [[{ type: "team", id: "a", data: ["x"] }], /data must be a hash/]
+    }.each do |description, (groups, message)|
+      it "refuses #{description} before any request" do
+        capture_events
+
+        expect { client.track("user.login", identity: "user_12345", groups: groups) }
+          .to raise_error(ArgumentError, message)
+        expect(WebMock).not_to have_requested(:post, "#{BASE_URL}/events")
+      end
+    end
+
     it "does not reach the network when an argument is refused" do
       capture_events
 

@@ -231,6 +231,7 @@ module Dregs
     MAX_BACKOFF_SECONDS: Float
     STATUS_RATE_LIMITED: String
     STATUS_QUOTA_EXCEEDED: String
+    DEFAULT_GROUP_TYPE: String
 
     attr_reader base_url: String
     attr_reader max_retries: Integer
@@ -249,6 +250,7 @@ module Dregs
       identity: String,
       ?data: Hash[untyped, untyped],
       ?identity_data: Hash[untyped, untyped],
+      ?groups: Array[Hash[untyped, untyped]]?,
       ?event_id: String?,
       ?timestamp: (Time | String)?,
       ?source: String?
