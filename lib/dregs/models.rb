@@ -621,7 +621,7 @@ module Dregs
     # @param model [Class] the model each item is parsed into
     def self.from_api(payload, model)
       payload = Parsing.hash_or_empty(payload)
-      items = Parsing.array_or_empty(payload["content"]).select { |item| item.is_a?(Hash) }
+      items = Parsing.array_or_empty(payload["content"]).grep(Hash)
 
       new(
         items: items.map { |item| model.from_api(item) },
@@ -815,7 +815,7 @@ module Dregs
     # @api private
     def self.from_api(payload)
       payload = Parsing.hash_or_empty(payload)
-      groups = Parsing.array_or_empty(payload["groups"]).select { |group| group.is_a?(Hash) }
+      groups = Parsing.array_or_empty(payload["groups"]).grep(Hash)
 
       new(
         id: payload["id"],

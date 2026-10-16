@@ -109,7 +109,7 @@ module Dregs
     end
 
     def parse_each(model, payload)
-      items = Parsing.array_or_empty(payload).select { |item| item.is_a?(Hash) }
+      items = Parsing.array_or_empty(payload).grep(Hash)
 
       items.map { |item| model.from_api(item) }
     end
