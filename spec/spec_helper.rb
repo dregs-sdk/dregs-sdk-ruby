@@ -41,6 +41,40 @@ module SpecHelpers
     bodies
   end
 
+  # Stubs any endpoint, whatever its query string, and returns the array its requests are collected
+  # into. Each request is answered with the next of +responses+, and the last one repeats.
+  def capture_requests(method, path, *responses, status: 200)
+    requests = []
+    pattern = /\A#{Regexp.escape("#{BASE_URL}#{path}")}(\?.*)?\z/
+
+    stub_request(method, pattern).to_return do |request|
+      response = responses[[requests.size, responses.size - 1].min]
+      requests << request
+
+      {
+        status: status,
+        body: response.nil? ? "" : response.to_json,
+        headers: { "Content-Type" => "application/json" }
+      }
+    end
+
+    requests
+  end
+
+  # Builds the API's +V1Page+ around +content+.
+  def page_of(content, number: 0, last: true, total: nil)
+    {
+      "pageNumber" => number,
+      "pageSize" => 2,
+      "totalPages" => last ? number + 1 : number + 2,
+      "totalElements" => total || content.size,
+      "content" => content,
+      "first" => number.zero?,
+      "last" => last,
+      "numberOfElements" => content.size
+    }
+  end
+
   # Stubs a JSON response for any endpoint.
   def stub_json(method, path, body, status: 200, headers: {})
     stub_request(method, "#{BASE_URL}#{path}").to_return(

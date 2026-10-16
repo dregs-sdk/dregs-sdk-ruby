@@ -3,7 +3,12 @@
 require_relative "dregs/version"
 require_relative "dregs/errors"
 require_relative "dregs/models"
+require_relative "dregs/resource"
 require_relative "dregs/identities"
+require_relative "dregs/groups"
+require_relative "dregs/events"
+require_relative "dregs/devices"
+require_relative "dregs/escalations"
 require_relative "dregs/client"
 require_relative "dregs/webhooks"
 

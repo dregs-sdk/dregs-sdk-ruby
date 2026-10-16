@@ -48,6 +48,13 @@ RSpec.describe Dregs::Client do
       expect(client.identities).to be_a(Dregs::Identities)
     end
 
+    it "exposes the groups, events, devices, and escalations namespaces" do
+      expect(client.groups).to be_a(Dregs::Groups)
+      expect(client.events).to be_a(Dregs::Events)
+      expect(client.devices).to be_a(Dregs::Devices)
+      expect(client.escalations).to be_a(Dregs::Escalations)
+    end
+
     it "can also be built through Dregs.new" do
       expect(Dregs.new(secret_key: SECRET_KEY)).to be_a(described_class)
     end
