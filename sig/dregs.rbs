@@ -60,7 +60,9 @@ module Dregs
 
   module Errors
     STATUS_ERRORS: Hash[Integer, Class]
+    REASON_PHRASES: Hash[Integer, String]
 
+    def self.reason_phrase: (Integer status_code) -> String
     def self.for_status: (Integer status_code) -> Class
   end
 
@@ -78,6 +80,7 @@ module Dregs
     def self?.time: (untyped value) -> Time?
     def self?.hash_or_empty: (untyped value) -> Hash[untyped, untyped]
     def self?.array_or_empty: (untyped value) -> Array[untyped]
+    def self?.integer_or_zero: (untyped value) -> Integer
   end
 
   class TrackResult
@@ -213,12 +216,413 @@ module Dregs
     def self.from_api: (untyped payload) -> Analysis
   end
 
-  class Identities
+  class Page[T]
+    include Enumerable[T]
+
+    attr_reader to_a: Array[T]
+    attr_reader page_number: Integer
+    attr_reader page_size: Integer
+    attr_reader total_pages: Integer
+    attr_reader total_elements: Integer
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (?Hash[Symbol, untyped] attributes) -> void
+    def each: () { (T) -> void } -> self
+            | () -> Enumerator[T, Page[T]]
+    def size: () -> Integer
+    def length: () -> Integer
+    def empty?: () -> bool
+    def []: (Integer index) -> T?
+    def first?: () -> bool
+    def last?: () -> bool
+    def next?: () -> bool
+    def has_next?: () -> bool
+    def self.from_api: (untyped payload, untyped model) -> Page[untyped]
+  end
+
+  class Reference
+    attr_reader id: String?
+    attr_reader label: String?
+    attr_reader path: String?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (id: String?, ?label: String?, ?path: String?, ?raw: Hash[untyped, untyped]) -> void
+    def self.from_api: (untyped payload) -> Reference?
+  end
+
+  class GroupReference
+    attr_reader type: String?
+    attr_reader id: String?
+    attr_reader label: String?
+    attr_reader path: String?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (
+      type: String?,
+      id: String?,
+      ?label: String?,
+      ?path: String?,
+      ?raw: Hash[untyped, untyped]
+    ) -> void
+
+    def self.from_api: (untyped payload) -> GroupReference
+  end
+
+  class Group
+    attr_reader type: String?
+    attr_reader id: String?
+    attr_reader display_name: String?
+    attr_reader identity_count: Integer?
+    attr_reader created_at: Time?
+    attr_reader updated_at: Time?
+    attr_reader last_tracked_at: Time?
+    attr_reader data: Hash[untyped, untyped]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> Group
+  end
+
+  class Event
+    attr_reader id: String?
+    attr_reader timestamp: Time?
+    attr_reader identity: Reference?
+    attr_reader groups: Array[GroupReference]
+    attr_reader fingerprint: String?
+    attr_reader session: String?
+    attr_reader ip: String?
+    attr_reader url: String?
+    attr_reader source: String?
+    attr_reader name: String?
+    attr_reader canonical_type: String?
+    attr_reader data: Hash[untyped, untyped]
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> Event
+  end
+
+  class Device
+    attr_reader fingerprint: String?
+    attr_reader ip: String?
+    attr_reader asn: String?
+    attr_reader asn_label: String?
+    attr_reader user_agent: String?
+    attr_reader city: String?
+    attr_reader region: String?
+    attr_reader country: String?
+    attr_reader country_code: String?
+    attr_reader timezone: String?
+    attr_reader latitude: Float?
+    attr_reader longitude: Float?
+    attr_reader disregarded: bool
+    attr_reader first_seen_at: Time?
+    attr_reader last_seen_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def disregarded?: () -> bool
+    def self.from_api: (untyped payload) -> Device
+  end
+
+  class LinkedIdentity
+    attr_reader identity_id: String?
+    attr_reader display_name: String?
+    attr_reader type: String?
+    attr_reader value: Float?
+    attr_reader confidence: Float?
+    attr_reader explanation: String?
+    attr_reader metadata: Hash[untyped, untyped]
+    attr_reader created_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> LinkedIdentity
+  end
+
+  class ScoreHistoryEntry
+    attr_reader cycle_id: Integer?
+    attr_reader humanity: Integer?
+    attr_reader authenticity: Integer?
+    attr_reader uniqueness: Integer?
+    attr_reader behavior: Integer?
+    attr_reader event_count: Integer?
+    attr_reader device_count: Integer?
+    attr_reader finished_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> ScoreHistoryEntry
+  end
+
+  class IdentityReview
+    attr_reader id: Integer?
+    attr_reader identity_id: String?
+    attr_reader status: String?
+    attr_reader feedback: String?
+    attr_reader summary: String?
+    attr_reader error_message: String?
+    attr_reader created_at: Time?
+    attr_reader completed_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> IdentityReview
+  end
+
+  class Escalation
+    attr_reader id: Integer?
+    attr_reader status: String?
+    attr_reader severity: String?
+    attr_reader identity: Reference?
+    attr_reader rule: Reference?
+    attr_reader scores: Hash[untyped, untyped]
+    attr_reader opened_at: Time?
+    attr_reader acknowledged_at: Time?
+    attr_reader closed_at: Time?
+    attr_reader created_at: Time?
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (Hash[Symbol, untyped] attributes) -> void
+    def self.from_api: (untyped payload) -> Escalation
+  end
+
+  class EscalationSummary
+    attr_reader open: Integer
+    attr_reader acknowledged: Integer
+    attr_reader closed: Integer
+    attr_reader raw: Hash[untyped, untyped]
+
+    def initialize: (?open: Integer, ?acknowledged: Integer, ?closed: Integer, ?raw: Hash[untyped, untyped]) -> void
+    def self.from_api: (untyped payload) -> EscalationSummary
+  end
+
+  type order = Symbol | String
+
+  class Resource
+    ORDERS: Array[String]
+
     def initialize: (Client client) -> void
+
+    private
+
+    def segment: (untyped value, String what) -> String
+    def identity_segment: (untyped identity_id) -> String
+    def list_page: (
+      String path,
+      untyped model,
+      Hash[String, untyped] filters,
+      page: Integer,
+      page_size: Integer?,
+      sort: String?,
+      order: order?
+    ) -> Page[untyped]
+    def list_every: (
+      String path,
+      untyped model,
+      Hash[String, untyped] filters,
+      page_size: Integer?,
+      sort: String?,
+      order: order?
+    ) ?{ (untyped) -> void } -> Enumerator[untyped, void]?
+    def fetch_page: (String path, untyped model, Hash[String, untyped] params, Integer number) -> Page[untyped]
+    def list_params: (
+      Hash[String, untyped] filters,
+      page_size: Integer?,
+      sort: String?,
+      order: order?
+    ) -> Hash[String, untyped]
+    def page_number: (untyped page) -> Integer
+    def order_param: (order? order) -> String?
+    def attributes_hash: (untyped attributes) -> Hash[untyped, untyped]
+    def parse_each: (untyped model, untyped payload) -> Array[untyped]
+  end
+
+  class Identities < Resource
+    def list: (
+      ?term: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?badge: String?,
+      ?page: Integer,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Page[Identity]
+
+    def list_all: (
+      ?term: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?badge: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) { (Identity) -> void } -> nil
+                | (
+      ?term: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?badge: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Enumerator[Identity, void]
+
     def get: (String identity_id) -> Identity
     def scores: (String identity_id) -> Scores
-    def analysis: (String identity_id) -> Analysis
+    def analysis: (String identity_id, ?cycle_id: (Integer | String)?) -> Analysis
+    def history: (String identity_id, ?limit: Integer?) -> Array[ScoreHistoryEntry]
+    def links: (String identity_id) -> Array[LinkedIdentity]
     def analyze: (String identity_id) -> nil
+    def update: (String identity_id, ?disregarded: bool?, ?attributes: Hash[untyped, untyped]?) -> Identity
+    def reviews: (String identity_id) -> Array[IdentityReview]
+    def review: (String identity_id, ?feedback: String?) -> IdentityReview
+  end
+
+  class Groups < Resource
+    def list: (
+      ?group_type: String?,
+      ?identity: String?,
+      ?term: String?,
+      ?page: Integer,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Page[Group]
+
+    def list_all: (
+      ?group_type: String?,
+      ?identity: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) { (Group) -> void } -> nil
+                | (
+      ?group_type: String?,
+      ?identity: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Enumerator[Group, void]
+
+    def get: (String group_type, String group_id) -> Group
+    def create: (String group_id, ?group_type: String?, ?attributes: Hash[untyped, untyped]?) -> Group
+    def update: (String group_type, String group_id, Hash[untyped, untyped]? attributes) -> Group
+    def add_member: (String group_type, String group_id, String identity_id) -> nil
+    def remove_member: (String group_type, String group_id, String identity_id) -> nil
+  end
+
+  class Events < Resource
+    def list: (
+      ?identity: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?session: String?,
+      ?term: String?,
+      ?page: Integer,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Page[Event]
+
+    def list_all: (
+      ?identity: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?session: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) { (Event) -> void } -> nil
+                | (
+      ?identity: String?,
+      ?group: String?,
+      ?group_type: String?,
+      ?device: String?,
+      ?session: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Enumerator[Event, void]
+
+    def get: (String event_id) -> Event
+  end
+
+  class Devices < Resource
+    def list: (
+      ?identity: String?,
+      ?term: String?,
+      ?page: Integer,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Page[Device]
+
+    def list_all: (
+      ?identity: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) { (Device) -> void } -> nil
+                | (
+      ?identity: String?,
+      ?term: String?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Enumerator[Device, void]
+
+    def get: (String fingerprint) -> Device
+    def update: (String fingerprint, disregarded: bool) -> Device
+  end
+
+  class Escalations < Resource
+    STATUSES: Array[String]
+
+    def list: (
+      ?status: (Symbol | String)?,
+      ?severity: (Symbol | String)?,
+      ?identity: String?,
+      ?rule: (Integer | String)?,
+      ?page: Integer,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Page[Escalation]
+
+    def list_all: (
+      ?status: (Symbol | String)?,
+      ?severity: (Symbol | String)?,
+      ?identity: String?,
+      ?rule: (Integer | String)?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) { (Escalation) -> void } -> nil
+                | (
+      ?status: (Symbol | String)?,
+      ?severity: (Symbol | String)?,
+      ?identity: String?,
+      ?rule: (Integer | String)?,
+      ?page_size: Integer?,
+      ?sort: String?,
+      ?order: order?
+    ) -> Enumerator[Escalation, void]
+
+    def get: (Integer | String escalation_id) -> Escalation
+    def update: (Integer | String escalation_id, status: Symbol | String) -> Escalation
+    def summary: () -> EscalationSummary
   end
 
   class Client
@@ -231,11 +635,16 @@ module Dregs
     MAX_BACKOFF_SECONDS: Float
     STATUS_RATE_LIMITED: String
     STATUS_QUOTA_EXCEEDED: String
+    DEFAULT_GROUP_TYPE: String
 
     attr_reader base_url: String
     attr_reader max_retries: Integer
     attr_reader timeout: Numeric
     attr_reader identities: Identities
+    attr_reader groups: Groups
+    attr_reader events: Events
+    attr_reader devices: Devices
+    attr_reader escalations: Escalations
 
     def initialize: (
       ?secret_key: String?,
@@ -249,12 +658,18 @@ module Dregs
       identity: String,
       ?data: Hash[untyped, untyped],
       ?identity_data: Hash[untyped, untyped],
+      ?groups: Array[Hash[untyped, untyped]]?,
       ?event_id: String?,
       ?timestamp: (Time | String)?,
       ?source: String?
     ) -> TrackResult
 
-    def request: (Symbol method, String path, ?body: Hash[untyped, untyped]?) -> untyped
+    def request: (
+      Symbol method,
+      String path,
+      ?body: Hash[untyped, untyped]?,
+      ?params: Hash[String, untyped]?
+    ) -> untyped
   end
 
   module Webhooks

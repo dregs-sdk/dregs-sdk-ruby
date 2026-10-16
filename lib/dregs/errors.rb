@@ -115,7 +115,7 @@ module Dregs
   # 5xx. Something went wrong inside Dregs. These are retried automatically.
   class ServerError < APIError; end
 
-  # Maps HTTP statuses to the error class that represents them.
+  # Maps HTTP statuses to the error class that represents them, and to their reason phrases.
   module Errors
     STATUS_ERRORS = {
       400 => BadRequestError,
@@ -125,6 +125,48 @@ module Dregs
       404 => NotFoundError,
       429 => RateLimitError
     }.freeze
+
+    # The standard reason phrase for each status an error response is likely to carry.
+    #
+    # An error body without a message of its own still deserves one more useful than "Request
+    # failed", and a server or proxy speaking HTTP/2 sends no reason phrase on the status line to
+    # fall back to.
+    REASON_PHRASES = {
+      400 => "Bad Request",
+      401 => "Unauthorized",
+      402 => "Payment Required",
+      403 => "Forbidden",
+      404 => "Not Found",
+      405 => "Method Not Allowed",
+      406 => "Not Acceptable",
+      408 => "Request Timeout",
+      409 => "Conflict",
+      410 => "Gone",
+      411 => "Length Required",
+      412 => "Precondition Failed",
+      413 => "Content Too Large",
+      414 => "URI Too Long",
+      415 => "Unsupported Media Type",
+      418 => "I'm a teapot",
+      422 => "Unprocessable Content",
+      425 => "Too Early",
+      428 => "Precondition Required",
+      429 => "Too Many Requests",
+      431 => "Request Header Fields Too Large",
+      500 => "Internal Server Error",
+      501 => "Not Implemented",
+      502 => "Bad Gateway",
+      503 => "Service Unavailable",
+      504 => "Gateway Timeout"
+    }.freeze
+
+    # Returns the standard reason phrase for +status_code+, such as +"Not Found"+ for 404.
+    #
+    # @param status_code [Integer]
+    # @return [String] the phrase, or +"Request failed"+ for a status without a standard one
+    def self.reason_phrase(status_code)
+      REASON_PHRASES.fetch(status_code, "Request failed")
+    end
 
     # Returns the exception class that represents +status_code+.
     #

@@ -7,7 +7,11 @@ require "securerandom"
 require "timeout"
 require "uri"
 
+require_relative "devices"
 require_relative "errors"
+require_relative "escalations"
+require_relative "events"
+require_relative "groups"
 require_relative "identities"
 require_relative "models"
 require_relative "version"
@@ -54,6 +58,9 @@ module Dregs
     STATUS_RATE_LIMITED = "rate_limited"
     STATUS_QUOTA_EXCEEDED = "quota_exceeded"
 
+    # The type a group is sent with when the caller does not name one.
+    DEFAULT_GROUP_TYPE = "organization"
+
     # @return [String] the API root every request is built against, without a trailing slash
     attr_reader :base_url
 
@@ -65,6 +72,18 @@ module Dregs
 
     # @return [Identities] read identities, their scores, and their analysis
     attr_reader :identities
+
+    # @return [Groups] read and manage groups and their members
+    attr_reader :groups
+
+    # @return [Events] read the events Dregs has recorded
+    attr_reader :events
+
+    # @return [Devices] read devices, and disregard them
+    attr_reader :devices
+
+    # @return [Escalations] read and work escalations
+    attr_reader :escalations
 
     # @param secret_key [String, nil] your credential's secret key; defaults to +$DREGS_SECRET_KEY+
     # @param base_url [String, nil] the API root; defaults to +$DREGS_BASE_URL+, then
@@ -88,6 +107,10 @@ module Dregs
       @timeout = timeout
       @max_retries = max_retries
       @identities = Identities.new(self)
+      @groups = Groups.new(self)
+      @events = Events.new(self)
+      @devices = Devices.new(self)
+      @escalations = Escalations.new(self)
     end
 
     # Records a backend event against an identity.
@@ -96,7 +119,8 @@ module Dregs
     #     "user.signup",
     #     identity: "user_12345",
     #     data: { plan: "pro", referrer: "partner-x" },
-    #     identity_data: { email: "ada@example.com", name: "Ada Lovelace" }
+    #     identity_data: { email: "ada@example.com", name: "Ada Lovelace" },
+    #     groups: [{ type: "team", id: "team_42", data: { name: "Payments" } }]
     #   )
     #
     # @param event_type [String] your name for the event, such as +"user.signup"+. Map it to one
@@ -111,6 +135,11 @@ module Dregs
     #   Dregs merges these into the identity, and the analyzers lean on them heavily, so send them
     #   whenever you have them. Flat keys work best; name them as your application already does
     #   and map them under *Settings -> Mappings*.
+    # @param groups [Array<Hash>, nil] the groups the user is acting in, such as their organization
+    #   or team, if your application has them. Each is a hash with an +id+ (your own), an optional
+    #   +type+ (your own name for the kind of group, defaulting to +"organization"+), and optional
+    #   +data+ that Dregs merges into the group. Dregs makes the identity a member of each. At most
+    #   one group of each type. Keys may be symbols or strings.
     # @param event_id [String, nil] your own id for the event, which makes ingestion idempotent:
     #   reposting the same id returns the original event instead of recording a second one. Pass
     #   the id your application already has (the row id of the record that triggered the event,
@@ -124,13 +153,15 @@ module Dregs
     # @raise [RateLimitError] the credential is ingesting too fast
     # @raise [AuthenticationError] the secret key was not recognized
     # @raise [BadRequestError] the event was malformed
-    # @raise [ArgumentError] the event type, identity, or event id was unusable
-    def track(event_type, identity:, data: {}, identity_data: {}, event_id: nil, timestamp: nil, source: nil)
+    # @raise [ArgumentError] the event type, identity, event id, or groups were unusable
+    def track(event_type, identity:, data: {}, identity_data: {}, groups: nil, event_id: nil, timestamp: nil,
+              source: nil)
       body = track_body(
         event_type,
         identity: identity,
         data: data,
         identity_data: identity_data,
+        groups: groups,
         event_id: event_id,
         timestamp: timestamp,
         source: source
@@ -142,12 +173,17 @@ module Dregs
     # Performs a request, retrying the failures worth retrying.
     #
     # @api private
-    # @param method [Symbol] +:get+ or +:post+
-    # @param path [String] the path below the base URL, with a leading slash
-    # @param body [Hash, nil] a JSON body, for POSTs that carry one
+    # @param method [Symbol] +:get+, +:post+, +:put+, +:patch+, or +:delete+
+    # @param path [String] the path below the base URL, with a leading slash, its segments already
+    #   escaped
+    # @param body [Hash, nil] a JSON body, for the requests that carry one
+    # @param params [Hash, nil] query parameters. Those that are nil are left out, and booleans are
+    #   spelled +true+ and +false+ as the API's binder reads them.
     # @return [Hash, Array, nil] the parsed response body
-    def request(method, path, body: nil)
+    def request(method, path, body: nil, params: nil)
       uri = URI.parse(url_for(path))
+      query = query_string(params)
+      uri.query = query unless query.nil?
       attempt = 0
 
       loop do
@@ -208,7 +244,7 @@ module Dregs
     # An event id is always sent. When the caller has an id of their own it is used verbatim, so
     # reposting the same event is a no-op on the Dregs side; otherwise one is generated, which is
     # what makes this client's own retries safe to perform.
-    def track_body(event_type, identity:, data:, identity_data:, event_id:, timestamp:, source:)
+    def track_body(event_type, identity:, data:, identity_data:, groups:, event_id:, timestamp:, source:)
       raise ArgumentError, "event_type is required." if event_type.nil? || event_type.to_s.empty?
 
       if identity.nil? || identity.to_s.empty?
@@ -217,6 +253,7 @@ module Dregs
               "identity is the only thing tying the event to a user."
       end
 
+      resolved_groups = groups_body(groups)
       resolved_id = event_id || SecureRandom.uuid.delete("-")
 
       if resolved_id.start_with?("dregs-")
@@ -233,9 +270,61 @@ module Dregs
         "source" => source || "ruby-sdk"
       }
 
+      body["groups"] = resolved_groups unless resolved_groups.empty?
       body["timestamp"] = iso8601(timestamp) unless timestamp.nil?
 
       body
+    end
+
+    # Builds the +groups+ array of a track body, refusing malformed entries before any request.
+    #
+    # Each group needs an +id+. Its +type+ defaults to +"organization"+, and Dregs normalizes it to
+    # lower_snake_case, so only one group of each type may go with an event.
+    def groups_body(groups)
+      return [] if groups.nil?
+
+      unless groups.is_a?(Array)
+        raise ArgumentError, "groups is an array of groups, such as [{ type: \"team\", id: \"team_42\" }]."
+      end
+
+      seen = []
+
+      groups.map do |group|
+        unless group.is_a?(Hash)
+          raise ArgumentError, "Each group must be a hash with an id, and optionally a type and data."
+        end
+
+        group_id = group_value(group, :id)
+
+        raise ArgumentError, "Each group needs an id." if group_id.nil? || group_id.to_s.empty?
+
+        group_type = group_value(group, :type)
+        group_type = DEFAULT_GROUP_TYPE if group_type.nil? || group_type == ""
+
+        unless group_type.is_a?(String)
+          raise ArgumentError, "A group's type must be a string, such as \"organization\" or \"team\"."
+        end
+
+        if seen.include?(group_type.downcase)
+          raise ArgumentError,
+                "Only one group of each type can go with an event; \"#{group_type}\" appears twice."
+        end
+
+        data = group_value(group, :data)
+
+        unless data.nil? || data.is_a?(Hash)
+          raise ArgumentError, "A group's data must be a hash, such as { name: \"Payments\" }."
+        end
+
+        seen << group_type.downcase
+
+        { "type" => group_type, "id" => group_id.to_s, "data" => data || {} }
+      end
+    end
+
+    # Reads a group's key whether the caller spelled it as a symbol or a string.
+    def group_value(group, key)
+      group.key?(key) ? group[key] : group[key.to_s]
     end
 
     # Formats a timestamp the way the API's +Instant+ parser expects.
@@ -252,6 +341,15 @@ module Dregs
 
     def url_for(path)
       "#{base_url}/#{path.sub(%r{\A/+}, "")}"
+    end
+
+    # Drops unset parameters and encodes the rest, or returns nil when nothing is left to send.
+    def query_string(params)
+      return nil if params.nil?
+
+      pairs = params.compact.map { |name, value| [name.to_s, value.to_s] }
+
+      pairs.empty? ? nil : URI.encode_www_form(pairs)
     end
 
     def headers
@@ -285,6 +383,9 @@ module Dregs
       case method
       when :get then Net::HTTP::Get.new(uri)
       when :post then Net::HTTP::Post.new(uri)
+      when :put then Net::HTTP::Put.new(uri)
+      when :patch then Net::HTTP::Patch.new(uri)
+      when :delete then Net::HTTP::Delete.new(uri)
       else raise ArgumentError, "Unsupported HTTP method: #{method}."
       end
     end
@@ -339,8 +440,8 @@ module Dregs
     end
 
     def api_error(response, payload, status)
-      message = message_from(payload) || response.message.to_s
-      message = "Request failed" if message.empty?
+      message = message_from(payload) || response.message.to_s.strip
+      message = Errors.reason_phrase(status) if message.empty?
 
       return rate_limit_error(response, payload, message) if status == 429
 

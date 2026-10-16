@@ -53,6 +53,33 @@ RSpec.describe "error handling" do
       expect { client.identities.get("user_12345") }.to raise_error(/HTTP 404: Not Found/)
     end
 
+    it "falls back to the reason phrase for the status when the body has no message" do
+      stub_json(:get, "/identities/user_12345", nil, status: 404)
+
+      expect { client.identities.get("user_12345") }
+        .to raise_error(Dregs::NotFoundError) { |error| expect(error.api_message).to eq("Not Found") }
+    end
+
+    it "falls back to the reason phrase when the body is JSON without a message" do
+      stub_json(:get, "/identities/user_12345", { "detail" => "nope" }, status: 503)
+
+      expect { client.identities.get("user_12345") }.to raise_error(/HTTP 503: Service Unavailable/)
+    end
+
+    it "prefers the reason phrase the server sent" do
+      stub_request(:get, identity_url).to_return(status: [404, "Nothing Here"], body: "")
+
+      expect { client.identities.get("user_12345") }
+        .to raise_error(Dregs::NotFoundError) { |error| expect(error.api_message).to eq("Nothing Here") }
+    end
+
+    it "says the request failed for a status without a standard phrase" do
+      stub_json(:get, "/identities/user_12345", nil, status: 499)
+
+      expect { client.identities.get("user_12345") }
+        .to raise_error(Dregs::APIError) { |error| expect(error.api_message).to eq("Request failed") }
+    end
+
     it "carries the request id through" do
       stub_json(:get, "/identities/user_12345", nil, status: 500, headers: { "X-Request-Id" => "req_abc" })
 

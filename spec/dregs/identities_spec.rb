@@ -239,6 +239,136 @@ RSpec.describe Dregs::Identities do
     end
   end
 
+  describe "#analysis of a past cycle" do
+    it "asks for the cycle by id" do
+      stub_json(:get, "/identities/user_12345/analysis/2000871", analysis_payload)
+
+      expect(client.identities.analysis("user_12345", cycle_id: 2_000_871).id).to eq(2_000_871)
+    end
+  end
+
+  describe "#list" do
+    it "sends the identity filters by their API names" do
+      requests = capture_requests(:get, "/identities", page_of([identity_payload]))
+
+      page = client.identities.list(group: "org_678", group_type: "organization", device: "abc", badge: "vpn")
+
+      expect(requests.last.uri.query_values).to include(
+        "group" => "org_678", "groupType" => "organization", "device" => "abc", "badge" => "vpn"
+      )
+      expect(page.first.display_email).to eq("ada@example.com")
+    end
+  end
+
+  describe "#history" do
+    it "parses each past cycle" do
+      requests = capture_requests(
+        :get,
+        "/identities/user_12345/history",
+        [{ "id" => 9, "humanityScore" => 80, "behaviorScore" => 60, "eventCount" => 3,
+           "finishedAt" => "2026-10-01T00:00:00Z" }]
+      )
+
+      history = client.identities.history("user_12345", limit: 10)
+
+      expect(requests.last.uri.query_values).to eq("limit" => "10")
+      expect(history.first.cycle_id).to eq(9)
+      expect(history.first.humanity).to eq(80)
+      expect(history.first.behavior).to eq(60)
+      expect(history.first.authenticity).to be_nil
+      expect(history.first.event_count).to eq(3)
+      expect(history.first.finished_at).to eq(Time.utc(2026, 10, 1))
+    end
+
+    it "sends no limit when none is given" do
+      requests = capture_requests(:get, "/identities/user_12345/history", [])
+
+      expect(client.identities.history("user_12345")).to eq([])
+      expect(requests.last.uri.query).to be_nil
+    end
+  end
+
+  describe "#links" do
+    it "parses the linked identities" do
+      stub_json(:get, "/identities/user_12345/links", [
+                  { "id" => 1, "targetIdentityId" => "user_999", "targetDisplayName" => "Bob",
+                    "type" => "SAME_DEVICE", "value" => 0.9, "confidence" => 0.8,
+                    "explanation" => "Seen on the same device", "metadata" => { "devices" => 1 } }
+                ])
+
+      link = client.identities.links("user_12345").first
+
+      expect(link.identity_id).to eq("user_999")
+      expect(link.display_name).to eq("Bob")
+      expect(link.type).to eq("SAME_DEVICE")
+      expect(link.value).to eq(0.9)
+      expect(link.confidence).to eq(0.8)
+      expect(link.metadata["devices"]).to eq(1)
+    end
+  end
+
+  describe "#update" do
+    it "sends only what was given" do
+      requests = capture_requests(
+        :patch, "/identities/user_12345", { "id" => "user_12345", "disregarded" => true }
+      )
+
+      identity = client.identities.update("user_12345", disregarded: true)
+
+      expect(JSON.parse(requests.last.body)).to eq("disregarded" => true)
+      expect(identity.disregarded?).to be(true)
+    end
+
+    it "merges attributes" do
+      requests = capture_requests(:patch, "/identities/user_12345", { "id" => "user_12345" })
+
+      client.identities.update("user_12345", attributes: { plan: "enterprise" })
+
+      expect(JSON.parse(requests.last.body)).to eq("attributes" => { "plan" => "enterprise" })
+    end
+
+    it "refuses an update with nothing in it before any request" do
+      expect { client.identities.update("user_12345") }.to raise_error(ArgumentError, /disregarded/)
+      expect(WebMock).not_to have_requested(:patch, /identities/)
+    end
+
+    it "refuses attributes that are not a hash" do
+      expect { client.identities.update("user_12345", attributes: ["plan"]) }
+        .to raise_error(ArgumentError, /attributes must be a hash/)
+    end
+  end
+
+  describe "#review and #reviews" do
+    it "requests a review and reads them back" do
+      requests = capture_requests(
+        :post,
+        "/identities/user_12345/actions/review",
+        { "id" => 7, "identityId" => "user_12345", "status" => "PENDING", "userFeedback" => "real customer" },
+        status: 201
+      )
+      stub_json(
+        :get, "/identities/user_12345/reviews", [{ "id" => 7, "status" => "FINISHED", "summary" => "Fine." }]
+      )
+
+      review = client.identities.review("user_12345", feedback: "real customer")
+      reviews = client.identities.reviews("user_12345")
+
+      expect(JSON.parse(requests.last.body)).to eq("feedback" => "real customer")
+      expect(review.status).to eq("PENDING")
+      expect(review.feedback).to eq("real customer")
+      expect(review.identity_id).to eq("user_12345")
+      expect(reviews.first.summary).to eq("Fine.")
+    end
+
+    it "sends an empty body when there is no feedback" do
+      requests = capture_requests(:post, "/identities/user_12345/actions/review", { "id" => 7 }, status: 201)
+
+      client.identities.review("user_12345")
+
+      expect(JSON.parse(requests.last.body)).to eq({})
+    end
+  end
+
   describe "#analyze" do
     let(:analyze_url) { "#{BASE_URL}/identities/user_12345/actions/analyze" }
 

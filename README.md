@@ -51,6 +51,26 @@ signature, so the identity is the only thing tying the event to a user.
 heavily, so send them whenever you have them. Name the keys the way your application already does and
 map them to Dregs's canonical fields under **Settings → Mappings**; the same goes for event names.
 
+### Groups
+
+If your application groups users into organizations, teams, workspaces, or the like, pass the groups the
+user is acting in. Dregs records each group and makes the identity a member of it. Each group has your
+own `id`, a `type` that is your own name for the kind of group (`"organization"` when omitted), and
+optional `data` that Dregs merges into the group, so later events can send the type and id alone. Dregs
+normalizes types to lower_snake_case, so `ParentCompany` and `parent-company` are the same type, and an
+event can carry one group of each type.
+
+```ruby
+client.track(
+  "user.login",
+  identity: "user_12345",
+  groups: [
+    { type: "organization", id: "org_678", data: { name: "Acme Inc", plan: "enterprise" } },
+    { type: "team", id: "team_42", data: { name: "Payments" } }
+  ]
+)
+```
+
 ### Idempotency
 
 Every event is sent with an `id`, which makes ingestion idempotent: reposting the same id returns the
@@ -133,6 +153,104 @@ client.identities.analyze("user_12345")
 This queues the work and returns; it does not wait for the cycle to finish. Dregs rescores on its own
 as events arrive, so you rarely need this outside of a support or backfill flow.
 
+### History, links, and past cycles
+
+```ruby
+history = client.identities.history("user_12345", limit: 10)
+
+history.each do |entry|
+  puts "#{entry.finished_at} #{entry.humanity} #{entry.behavior}"
+end
+
+older = client.identities.analysis("user_12345", cycle_id: history.last.cycle_id)  # a past cycle
+
+client.identities.links("user_12345").each do |link|
+  puts "#{link.identity_id} #{link.type} #{link.explanation}"  # e.g. "user_999 SAME_DEVICE ..."
+end
+```
+
+### Disregarding an identity
+
+Leave your own staff and test accounts out of scoring and escalations:
+
+```ruby
+client.identities.update("qa_bot_7", disregarded: true)
+```
+
+### Asking for a review
+
+When a score looks wrong, Dregs's AI reviewer will look over the analysis and say why. The review runs
+in the background, so read it back later with `reviews`.
+
+```ruby
+review = client.identities.review("user_12345", feedback: "This is a long-standing customer.")
+
+review.status  # "PENDING", then "FINISHED"
+```
+
+## Listing and paging
+
+Every namespace with a `list` returns one `Dregs::Page` at a time, numbered from 0, and a `list_all`
+that walks every page for you:
+
+```ruby
+page = client.identities.list(term: "example.com", page_size: 50)
+
+page.total_elements  # how many match in all
+page.has_next?       # whether another page follows
+
+client.identities.list_all(group: "org_678", sort: "humanityScore", order: :asc).each do |identity|
+  # ...
+end
+```
+
+A page is `Enumerable` over its items. `list_all` returns an `Enumerator` that fetches each page only
+when the items before it have been used up, so `list_all.first(10)` costs a single request; pass it a
+block instead and it yields every item. Filters you leave out are not sent. A page holds at most 100
+items.
+
+## Groups
+
+`track` records groups and memberships as events arrive. The `groups` namespace reads them back, and
+keeps Dregs in step when something changes outside an event, such as a user leaving a team:
+
+```ruby
+client.groups.create("org_678", attributes: { name: "Acme Inc", plan: "enterprise" })
+
+group = client.groups.get("organization", "org_678")
+group.identity_count  # 12
+
+client.groups.update("organization", "org_678", { plan: "business" })
+
+client.groups.add_member("team", "team_42", "user_12345")
+client.groups.remove_member("team", "team_42", "user_12345")
+
+client.groups.list_all(group_type: "team", identity: "user_12345").each do |team|
+  puts "#{team.id} #{team.display_name}"
+end
+```
+
+`create` merges into the group when one with the same type and id already exists, so it is safe to call
+on every sync. The type defaults to `"organization"`.
+
+## Events, devices, and escalations
+
+```ruby
+client.events.list_all(identity: "user_12345").each do |event|
+  puts "#{event.timestamp} #{event.name} #{event.canonical_type}"
+end
+
+client.devices.update("a1b2c3d4e5", disregarded: true)  # e.g. a shared office machine
+
+client.escalations.list_all(status: :open, severity: :critical).each do |escalation|
+  notify_on_call(escalation.identity.id)
+  client.escalations.update(escalation.id, status: :acknowledged)
+end
+
+summary = client.escalations.summary
+summary.open  # 3
+```
+
 ## Errors
 
 ```ruby
@@ -153,7 +271,7 @@ end
 | `Dregs::AuthenticationError` | 401, the secret key was not recognized |
 | `Dregs::QuotaExceededError` | 402, the account is over its monthly event limit |
 | `Dregs::PermissionDeniedError` | 403, the credential may not do this |
-| `Dregs::NotFoundError` | 404, no such identity, or it has not been analyzed |
+| `Dregs::NotFoundError` | 404, no such identity (or group, event, device, escalation), or it has not been analyzed |
 | `Dregs::RateLimitError` | 429, too many requests |
 | `Dregs::ServerError` | 5xx |
 | `Dregs::TimeoutError` | the request timed out |
