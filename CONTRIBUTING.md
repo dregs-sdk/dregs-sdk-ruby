@@ -3,8 +3,8 @@
 Thanks for helping improve the Dregs Ruby SDK.
 
 This is a **port** of the reference SDK, [dregs-sdk-python](https://github.com/dregs-sdk/dregs-sdk-python),
-which the TypeScript, Java, Ruby, and PHP clients all follow the shape of. A change to the public
-surface here is a change to all five, so surface changes are worth discussing in an issue before you
+which the TypeScript, Java, Ruby, PHP, Rust, and Elixir clients all follow the shape of. A change to the public
+surface here is a change to all seven, so surface changes are worth discussing in an issue before you
 write the code.
 
 ## Getting set up
