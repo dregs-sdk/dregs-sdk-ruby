@@ -9,5 +9,5 @@ gemspec
 gem "rake", "~> 13.2"
 gem "rbs", "~> 3.5"
 gem "rspec", "~> 3.13"
-gem "rubocop", "~> 1.66"
+gem "rubocop", "~> 1.92"
 gem "webmock", "~> 3.23"
